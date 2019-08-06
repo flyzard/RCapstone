@@ -2,6 +2,7 @@
 source("./algorithms.R")
 library(stringi)
 library(quanteda)
+library(dplyr)
 
 # unigrams <- readRDS("final_unigrams.rds")
 # bigrams <- readRDS("final_bigrams.rds")
@@ -37,13 +38,14 @@ test.model <- function(sampleText, FUN = basic.predict.word) {
           
           if (i > 0) {
             
-            predicted <- FUN(s)
-            if (tolower(word) == predicted) {
+            predicted <- FUN(s, 1)
+            if (tolower(word) %in% predicted) {
                 matched <- matched+1
             } 
             
             totalWords <- totalWords + 1
-            t[totalWords,] = c(s, predicted, word)
+            p <- paste(predicted, collapse = ", ")
+            t[totalWords,] = c(s, p, word)
           }
           new_sentence <- append(tail(new_sentence, 2), stemed)
           s <- paste(new_sentence, collapse=" ")
@@ -61,7 +63,15 @@ test.model <- function(sampleText, FUN = basic.predict.word) {
 }
 
 # Test the most basic model
-res <- test.model(sampledSet) # 0.1533627
+system.time({ res <- test.model(sampledSet) })
+head(res, 1000)
+
+results <- quadgrams[word_1 == word1 & word_2 == word2 & word_3 == word3][order(-prob)]$word_4
+
+restri <- trigrams[word_1 == word2 & word_2 == word3][order(-prob)]$word_3
+
+resbi <- bigrams[word_1 == word3][order(-prob)]$word_2
+
 
 res3 <- as.data.table(res)
 

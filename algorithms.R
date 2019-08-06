@@ -25,77 +25,67 @@ context.get <- function(text = "") {
 theThreeMostLikelyWords <- unigrams[order(-prob)][1:3]$word_1
 
 searchUnigram <- function(qty = 3) {
-  theThreeMostLikelyWords[1]
+  theThreeMostLikelyWords[1:qty]
 }
 
 searchBigram <- function(word, qty = 3) {
-  qty <- as.numeric(qty)
-  word <- as.character(word)
+
   results <- bigrams[word_1 == word][order(-prob)]$word_2
-  if (length(results[!is.na(results)]) > 0) return(results[!is.na(results)][1])
+  results <- results[!is.na(results)]
+  n_results <- length(results)
+  if (n_results >= qty) return(results[1:qty])
 
-  return(searchUnigram())
+  return(append(results, searchUnigram()))
 }
 
-searchTrigram <- function(word1, word2, qty = 1) {
-  qty <- as.numeric(qty)
-  word1 <- as.character(word1)
-  word2 <- as.character(word2)
-
+searchTrigram <- function(word1, word2, qty = 3) {
   results <- trigrams[word_1 == word1 & word_2 == word2][order(-prob)]$word_3
-  if (length(results[!is.na(results)]) > 0) return(results[!is.na(results)][1])
+  results <- results[!is.na(results)]
+  n_results <- length(results)
+  if (n_results >= qty) return(results[1:qty])
   
-  results <- bigrams[word_1 == word2][order(-prob)]$word_2
-  if (length(results[!is.na(results)]) > 0) return(results[!is.na(results)][1])
+  resbi <- bigrams[word_1 == word2][order(-prob)]$word_2
+  results <- append(results, resbi[!is.na(resbi)])
+  n_results <- length(results)
+  if (n_results >= qty) return(results[1:qty])
 
-  return(searchUnigram())
+  return(append(results, searchUnigram()))
 }
 
-searchQuadgram <- function(word1, word2, word3, qty = 1) {
-  qty <- as.numeric(qty)
-  word1 <- as.character(word1)
-  word2 <- as.character(word2)
-  word3 <- as.character(word3)
-  
+searchQuadgram <- function(word1, word2, word3, qty = 3) {
   results <- quadgrams[word_1 == word1 & word_2 == word2 & word_3 == word3][order(-prob)]$word_4
-  if (length(results[!is.na(results)]) > 0) return(results[!is.na(results)][1])
+  results <- results[!is.na(results)]
+  n_results <- length(results)
+  if (n_results >= qty) return(results[1:qty])
 
-  results <- trigrams[word_1 == word2 & word_2 == word3][order(-prob)]$word_3
-  if (length(results[!is.na(results)]) > 0) return(results[!is.na(results)][1])
+  restri <- trigrams[word_1 == word2 & word_2 == word3][order(-prob)]$word_3
+  results <- append(results, restri[!is.na(restri)])
+  n_results <- length(results)
+  if (n_results >= qty) return(results[1:qty])
   
-  results <- bigrams[word_1 == word3][order(-prob)]$word_2
-  if (length(results[!is.na(results)]) > 0) return(results[!is.na(results)][1])
+  resbi <- bigrams[word_1 == word3][order(-prob)]$word_2
+  results <- append(results, resbi[!is.na(resbi)])
+  n_results <- length(results)
+  if (n_results >= qty) return(results[1:qty])
   
-  return(searchUnigram())
+  return(append(results, searchUnigram()))
 }
 
-basic.predict.word <- function(sentence = "") {
+basic.predict.word <- function(sentence = "", n_predict = 3) {
 
   # Get context - Get the the full sentence
   context <- context.get(sentence)
   
   # If only one word is provided, show the 5 most likely following words in the bigrams
   if (context$length == 0) {
-    predictions <- searchUnigram()
+    predictions <- searchUnigram(n_predict)
   }else if (context$length == 1) {
-    predictions <- searchBigram(context$context[1])
+    predictions <- searchBigram(context$context[1], n_predict)
   } else if (context$length == 2) {
-    predictions <- searchTrigram(context$context[1], context$context[2])
+    predictions <- searchTrigram(context$context[1], context$context[2], n_predict)
   } else if(context$length == 3) {
     #predictions <- searchTrigram(context$context[2], context$context[3])
-    predictions <- searchQuadgram(context$context[1], context$context[2], context$context[3])
+    predictions <- searchQuadgram(context$context[1], context$context[2], context$context[3], n_predict)
   }
   predictions
 }
-
-basic.predict.word("ceasar meets asdfs")
-
-
-
-
-
-### Calculate probabilities based on kneser ney algorithm
-## For unigram:
-# Calculate nrow for bigrams
-
-# Calculate the number of entries in bigrams that start with each word in the unigrams
