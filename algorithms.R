@@ -29,13 +29,12 @@ searchUnigram <- function(qty = 3) {
 }
 
 searchBigram <- function(word, qty = 3) {
-
   results <- bigrams[word_1 == word][order(-prob)]$word_2
   results <- results[!is.na(results)]
   n_results <- length(results)
   if (n_results >= qty) return(results[1:qty])
 
-  return(append(results, searchUnigram()))
+  return(append(results, searchUnigram(qty - n_results)))
 }
 
 searchTrigram <- function(word1, word2, qty = 3) {
@@ -44,12 +43,7 @@ searchTrigram <- function(word1, word2, qty = 3) {
   n_results <- length(results)
   if (n_results >= qty) return(results[1:qty])
   
-  resbi <- bigrams[word_1 == word2][order(-prob)]$word_2
-  results <- append(results, resbi[!is.na(resbi)])
-  n_results <- length(results)
-  if (n_results >= qty) return(results[1:qty])
-
-  return(append(results, searchUnigram()))
+  return(append(results, searchBigram(word2, qty - n_results)))
 }
 
 searchQuadgram <- function(word1, word2, word3, qty = 3) {
@@ -58,17 +52,7 @@ searchQuadgram <- function(word1, word2, word3, qty = 3) {
   n_results <- length(results)
   if (n_results >= qty) return(results[1:qty])
 
-  restri <- trigrams[word_1 == word2 & word_2 == word3][order(-prob)]$word_3
-  results <- append(results, restri[!is.na(restri)])
-  n_results <- length(results)
-  if (n_results >= qty) return(results[1:qty])
-  
-  resbi <- bigrams[word_1 == word3][order(-prob)]$word_2
-  results <- append(results, resbi[!is.na(resbi)])
-  n_results <- length(results)
-  if (n_results >= qty) return(results[1:qty])
-  
-  return(append(results, searchUnigram()))
+  return(append(results, searchTrigram(word2, word3, qty - n_results)))
 }
 
 basic.predict.word <- function(sentence = "", n_predict = 3) {
@@ -84,8 +68,8 @@ basic.predict.word <- function(sentence = "", n_predict = 3) {
   } else if (context$length == 2) {
     predictions <- searchTrigram(context$context[1], context$context[2], n_predict)
   } else if(context$length == 3) {
-    #predictions <- searchTrigram(context$context[2], context$context[3])
-    predictions <- searchQuadgram(context$context[1], context$context[2], context$context[3], n_predict)
+    predictions <- searchTrigram(context$context[2], context$context[3], n_predict)
+    #predictions <- searchQuadgram(context$context[1], context$context[2], context$context[3], n_predict)
   }
   predictions
 }

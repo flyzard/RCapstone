@@ -4,10 +4,10 @@ library(stringi)
 library(quanteda)
 library(dplyr)
 
-# unigrams <- readRDS("final_unigrams.rds")
-# bigrams <- readRDS("final_bigrams.rds")
-# trigrams <- readRDS("final_trigrams.rds")
-# quadgrams <- readRDS("final_quadgrams.rds")
+unigrams <- readRDS("final_unigrams.rds")
+bigrams <- readRDS("final_bigrams.rds")
+trigrams <- readRDS("final_trigrams.rds")
+quadgrams <- readRDS("final_quadgrams.rds")
 
 
 # Open file connection
@@ -18,11 +18,12 @@ sampledSet <- validationSet[sample(len, len * 0.0005)]
 rm(validationSet, len)
 gc()
 
-test.model <- function(sampleText, FUN = basic.predict.word) {
+test.model <- function(sampleText, FUN = basic.predict.word, n = 3) {
   matched <- 0
   totalWords <- 0
   t <- NULL
   t = rbind(t, data.frame("sentence", "predicted", "word", stringsAsFactors = FALSE))
+  colnames(t) <- c("sent", "pred", "word")
   setkeyv(quadgrams, c("word_1", "word_2", "word_3"))
   setkeyv(trigrams, c("word_1", "word_2"))
   setkey(bigrams, word_1)
@@ -36,9 +37,8 @@ test.model <- function(sampleText, FUN = basic.predict.word) {
       for (word in stri_extract_all_words(sentence)[[1]]) {
           stemed <- char_wordstem(word)
           
-          if (i > 0) {
-            
-            predicted <- FUN(s, 1)
+          if (i > 0) { # if given at least one word, predict the next one
+            predicted <- FUN(s, n)
             if (tolower(word) %in% predicted) {
                 matched <- matched+1
             } 
@@ -49,7 +49,6 @@ test.model <- function(sampleText, FUN = basic.predict.word) {
           }
           new_sentence <- append(tail(new_sentence, 2), stemed)
           s <- paste(new_sentence, collapse=" ")
-          
           i <- i + 1
       }
     }
@@ -63,33 +62,36 @@ test.model <- function(sampleText, FUN = basic.predict.word) {
 }
 
 # Test the most basic model
-system.time({ res <- test.model(sampledSet) })
+system.time({ res <- test.model(sampledSet, n = 1) })
+colnames(res) <- c("sent", "pred", "word")
 head(res, 1000)
 
-results <- quadgrams[word_1 == word1 & word_2 == word2 & word_3 == word3][order(-prob)]$word_4
-
-restri <- trigrams[word_1 == word2 & word_2 == word3][order(-prob)]$word_3
-
-resbi <- bigrams[word_1 == word3][order(-prob)]$word_2
+#Check the wrongly predicted duplicated in the 4 gram 
+res <- as.data.table(res)
+wrong <- as.data.frame(res[pred != tolower(word)])
 
 
-res3 <- as.data.table(res)
-
-res4 <- as.data.table(res)
-colnames(res4)<- c("sent", "pred", "word")
-colnames(res3) <- c("sent", "pred", "word")
-
-setkey(res4, sent)
-setkey(res3, sent)
-
-quadgrams[word_1 == "" & word_2 == "", word_3 == ""]
-
-diff <- as.data.frame(res4[res3][pred != i.pred & i.pred == word, .(sent, pred, word)])
-
-for (row in 1:nrow(diff)) {
-  context <- context.get(diff[row, "sent"])
-  print(quadgrams[word_1 == context$context[1] & word_2 == context$context[2] & word_3 == context$context[3]])
-  print(trigrams[word_1 == context$context[2] & word_2 == context$context[3]])
+count <- 0
+for (i in 1:nrow(wrong)) {
+  context <- context.get(wrong[i, "sent"])
+  if (context$length == 3) {
+    tri_results <- trigrams[word_1 == context$context[2] & word_2 == context$context[3]][order(-prob)]
+    if ((length(quad_results$word_4) > 1) & (wrong[i, "word"] %in% tri_results$word_3[1])) {
+      print(wrong[i, "sent"])
+      print(wrong[i, "word"])
+      print(tri_results[1])
+      print(tri_results[1]$prob)
+      count <- count+1
+    }
+    #restri <- trigrams[word_1 == context$context[2] & word_2 == context$context[3]][order(-prob)]$word_3
+  }
 }
 
-basic.predict.word("ceasar meets asdfs")
+
+
+quadgrams[word_1 == "as" & word_2 == "they" & word_3 == "turn"][order(-prob)]
+trigrams[word_1 == "they" & word_2 == "turn"][order(-prob)]
+
+quadgrams[word_1 == "get" & word_2 == "it" & word_3 == "into"][order(-prob)]
+trigrams[word_1 == "it" & word_2 == "into"][order(-prob)]
+

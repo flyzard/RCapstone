@@ -7,6 +7,11 @@ bigrams <- bigrams[order(-count)]
 trigrams <- trigrams[order(-count)]
 
 library(ggplot2)
+library(quanteda)
+
+textplot_wordcloud(uni_DFM)
+
+
 
 toGraph <- unigrams[1:20, ]
 toGraph$word_1 <- factor(toGraph$word_1, levels = toGraph$word_1)

@@ -10,7 +10,7 @@ getProfanityWords <- function() {
   profanity$V1
 }
 
-textToStemedWords <- function(trainningSet) {
+textToTokens <- function(trainningSet) {
   # Create a corpus from the training set text
   corp <- corpus(trainningSet)
 
@@ -41,7 +41,7 @@ textToStemedWords <- function(trainningSet) {
 trainningSet <- readRDS("trainningSet.rds")
 # Create tokens from the text, stemed when possible
 # stemed_words <- textToStemedWords(trainningSet)
-words <- textToStemedWords(trainningSet)
+words <- textToTokens(trainningSet)
 
 # Save the words (textToStemedWords it's a expensive process that we don't want to repeat to often)
 #saveRDS(stemed_words, "stemed_words.rds")
@@ -113,7 +113,7 @@ saveRDS(quad_grams, "raw_quadgram.rds")
 rm(sums_U, sums_B, sums_T, sums_Q)
 gc()
 
-unigram_stemed <- uni_grams[, word_1 := char_wordstem(word_1)]
+#unigram_stemed <- uni_grams[, word_1 := char_wordstem(word_1)]
 
 bigram_stemed <- bi_grams[, word_1 := char_wordstem(word_1)]
 
@@ -125,7 +125,7 @@ quadgram_stemed <- quadgram_stemed[, word_2 := char_wordstem(word_2)]
 quadgram_stemed <- quadgram_stemed[, word_3 := char_wordstem(word_3)]
 
 # Remove the duplication from the steming
-unigrams <- unigram_stemed[, .(count = sum(count)), by = word_1]
+#unigrams <- unigram_stemed[, .(count = sum(count)), by = word_1]
 bigrams <- bigram_stemed[, .(count = sum(count)), by = c("word_1", "word_2")]
 trigrams <- trigram_stemed[, .(count = sum(count)), by = c("word_1", "word_2", "word_3")]
 quadgrams <- quadgram_stemed[, .(count = sum(count)), by = c("word_1", "word_2", "word_3", "word_4")]
