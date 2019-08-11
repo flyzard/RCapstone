@@ -1,0 +1,92 @@
+Text predictor, Summary
+========================================================
+title: "Text predictor, Summary"
+author: Joao Felizardo
+date: 11/08/2019
+autosize: true
+
+This slide presentation documents the work done after obtaining the n-grams, explained in <http://rpubs.com/felizardo/MilestoneReport>.
+
+On a first phase, I use 4-grams, 3-grams. 2-grams and 1-grams. Further, on the application tunning phase, was observed that the use of the 4-grams didn't increased significantly the prediction accuracy, compromising the performance of the app.
+
+On the data preparation process, I realise that a lot of the profanity words were not removed in the previous process, so I had to manually list it and remove it from the data set.
+
+After cleaning the data set, the plan was:
+
+- Calculate Maximum likelyhood Estimation for each n-gram
+- Set probabilities in form ot `log10`
+- Prune the ngra,s dataset, to make them as light as possible
+- Create a way to automatically test the prediction algorithm in the validation data set
+- Create the functions to accept the text and output the prediction of the next words
+- Create the prediction algorithm
+
+Calculate maximum likelyhood estimation
+========================================================
+In order to calculate the maximu likelihood estimation, first we devide the `counts` of ginven n-gram by the times the previous words occur in the ngram. p.e.: For the ngram `of the` with occorring 150000 times, and the word `of` preceeding 300 000 words on the training set, the MLE is 150000 / 300000. (this are fictional values just for the example)
+
+```{r eval = FALSE}
+unigram_count_total <- unigrams[, sum(count)]
+unigrams[, prob := (count / unigram_count_total)]
+unigrams[, count := NULL]
+
+# Calculating probabilities of bigrams
+bigrams <- bigrams[word_1 != "" & word_2 != ""]
+bigrams[, prob := count / sum(count), by = word_1]
+bigrams[, count := NULL]
+bigrams <- bigrams[!is.na(prob)]
+
+# Calculating probabilities of trigrams
+trigrams <- trigrams[word_1 != "" & word_2 != "" & word_3 != ""]
+trigrams[, prob := count / sum(count), by = .(word_1, word_2)]
+trigrams[, count := NULL]
+trigrams <- trigrams[!is.na(prob)]
+```
+
+A considerable amount of n-grams got the same likelyhood, which makes the prediction algorithm very inefficient. So I add to the MLE 5% of the like MLE of the ngram-1 to the ngram.
+```{r eval = FALSE}
+setkey(bigrams, word_2)
+setkey(unigrams, word_1)
+## Try to add some more probabilitie to the ones more likely to occurr to distinguish from the less likely
+bigrams_t <- bigrams[unigrams, prob_t := (prob + (i.prob * 0.05))]
+bigrams <- bigrams_t[!is.na(prob_t)]
+bigrams[, prob := log(prob)]
+bigrams[, prob_t := NULL]
+bigrams <- bigrams[prob != 0]
+```
+
+Pruning the ngrams
+========================================================
+
+In order to have the ngrams as small as possible, some not relevant data had to be removed. Since we would be predicting the 3 most likely next words, all the features in the ngrams that not the 3 most likely features for each group of previous words on the ngram, must be removed.
+```{r, eval=FALSE}
+# Once we will be predicting at maximum 3 words, we'll remove the other less likely ngrmas
+final_bigrams <- bigrams[order(-prob)][, head(.SD, 3), by = word_1]
+final_trigrams <- trigrams[order(-prob)][, head(.SD, 3), by = .(word_1, word_2)]
+final_quadgrams <- quadgrams[order(-prob)][, head(.SD, 3), by = .(word_1, word_2, word_3)]
+```
+
+Algorithm
+========================================================
+
+The algorithm that showed more efficiency was the `stupid backoff` model. This consists in checking if the given test exists in the 3-gram model. If not, the last word is searched in the 2-gram and in case is not found, is the most likely words in the unigram are returned. 
+
+An important part of the application was the function to treat the input text for prediction. This has to strip weird characters, stem the words, return the number of words to let know which kind of ngram should be used first, etc...
+
+Here is an example of the function for 3-grams, using the `stupid backoff model`
+```{r eval= FALSE}
+searchTrigram <- function(word1, word2, qty = 3) {
+  results <- trigrams[word_1 == word1 & word_2 == word2][order(-prob)]$word_3
+  results <- results[!is.na(results)]
+  n_results <- length(results)
+  if (n_results >= qty) return(results[1:qty])
+  
+  return(append(results, searchBigram(word2, qty - n_results)))
+}
+```
+
+Considerarions
+========================================================
+
+The application, while being testes on the test data set showed an accuracy of around 26%. The application runs smothly, not requiring considerable amouns of memory or CPU.
+
+One feature that could contribute possitively is updating the likelihood of the words in the n-grams, while the users input their content.

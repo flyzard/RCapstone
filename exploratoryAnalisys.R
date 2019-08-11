@@ -1,6 +1,7 @@
-unigrams <- readRDS("unigram.rds")
-bigrams <- readRDS("bigram.rds")
-trigrams <- readRDS("trigram.rds")
+unigrams <- readRDS("stemed_unigram.rds")
+bigrams <- readRDS("stemed_bigram.rds")
+trigrams <- readRDS("stemed_trigram.rds")
+quadgrams <- readRDS("stemed_quadgram.rds")
 
 unigrams <- unigrams[order(-count)]
 bigrams <- bigrams[order(-count)]
@@ -8,12 +9,23 @@ trigrams <- trigrams[order(-count)]
 
 library(ggplot2)
 library(quanteda)
+library(data.table)
 
-textplot_wordcloud(uni_DFM)
+# Plot word cloud
+textplot_wordcloud(uni_DFM, color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+
+
+# Plot frequency of the top features
+features_dfm_inaug <- textstat_frequency(uni_DFM, n = 100)
+features_dfm_inaug$feature <- with(features_dfm_inaug, reorder(feature, - frequency))
+ggplot(features_dfm_inaug, aes(x = feature, y = frequency)) +
+    geom_point() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
 
-toGraph <- unigrams[1:20, ]
+#new
+toGraph <- unigrams[order(-count)][1:20]
 toGraph$word_1 <- factor(toGraph$word_1, levels = toGraph$word_1)
 
 ggplot(data=toGraph, aes(x=word_1, y=count)) + geom_bar(stat="identity") +

@@ -1,0 +1,12 @@
+name: DataScienceCapstone
+title: DataScienceCapstone
+username:
+account: felizardo
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1079673
+bundleId: 2309184
+url: https://felizardo.shinyapps.io/DataScienceCapstone/
+when: 1565533488.86728
+asMultiple: FALSE
+asStatic: FALSE

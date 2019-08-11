@@ -31,9 +31,6 @@ textToTokens <- function(trainningSet) {
     include_docvars = FALSE
   )
 
-  # Replace words for their short form or stem
-  # stemed_words <- tokens_wordstem(toks, language = "english")
-
   return(toks)
 }
 
@@ -55,9 +52,9 @@ words <- readRDS("all_words.rds")
 # Get Tokenised setemed words
 # stemed_words <- readRDS("all_words.rds")
 
-# Form bi-grams
+# For bi-grams
 bi_gram <- tokens_ngrams(words, n = 2)
-# # Form tri-grams
+# # For tri-grams
 tri_gram <- tokens_ngrams(words, n = 3)
 ## To Be continued
 quad_gram <- tokens_ngrams(words, n = 4)

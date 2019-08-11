@@ -4,10 +4,10 @@ library(stringi)
 library(quanteda)
 library(dplyr)
 
-unigrams <- readRDS("final_unigrams.rds")
-bigrams <- readRDS("final_bigrams.rds")
-trigrams <- readRDS("final_trigrams.rds")
-quadgrams <- readRDS("final_quadgrams.rds")
+unigrams <- readRDS("DataScienceCapstone/final_unigrams.rds")
+bigrams <- readRDS("DataScienceCapstone/final_bigrams.rds")
+trigrams <- readRDS("DataScienceCapstone/final_trigrams.rds")
+quadgrams <- readRDS("DataScienceCapstone/final_quadgrams.rds")
 
 
 # Open file connection

@@ -1,0 +1,244 @@
+---
+title: "Milestone Report"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(1111)
+library(data.table)
+library(quanteda)
+library(ggplot2)
+quanteda_options(threads = 4)
+```
+
+## Milestone Report
+This is part of the capstone of the Coursera Data Science certification by Johns Hopkins University. The goal of this capstone is to create a typing prediction algorithm that can work both accurately and efficiently.
+This document aims to walk you through my exploratory analysis, the process to treat the data and the conclusions about the best way to approach the rest of the capstone project. For that, I will document all the steps since gathering the data, working it out, until the point I figured out which algorithm would serve me better for the consolidation of the project.
+
+
+## Downloading and chunking the data
+The data files used in this project can be downloaded from:
+```{r eval = FALSE}
+url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+```
+Which we will download this way:
+```{r eval = FALSE}
+download.file(url, destfile="final.zip",method="libcurl")
+```
+And unzip:
+```{r eval = FALSE}
+unzip("./final.zip")
+file.remove("./final.zip")
+```
+
+I've chosen to work with the english files, so I'll create 3 data sets (training, validation and test) from the files in `"./final/en_US/"`.
+I'll read all content of the files ending in `.txt` in the folder `"./final/en_US/"` to memory. After that, I'll remove all non ASCII or characters and merge all content in one variable.
+```{r eval = FALSE}
+set.seed(1111)
+library(parallel)
+
+cl <- makeCluster(3, type = "FORK")
+# For the files in "./final/en_US/" matching the pattern "^(en_US\\.)([a-z]{1,7})(\\.txt$)"
+# get all their content to emory
+extractText <- function(filePath, portion) {
+  patt <- "^(en_US\\.)([a-z]{1,7})(\\.txt$)"
+  en_US.Dir <- "./final/en_US/"
+  
+  if (grepl(patt, filePath)) { # Only for the files matching the pattern
+    
+    con <- file(paste(en_US.Dir, filePath, sep = ""), "r")
+    ds <- readLines(con)
+    close(con)
+    
+    len <- length(ds)
+    
+    ds[sample(len, len * portion)]
+    
+  } else {
+    NULL 
+  }
+}
+# using concurrency to read all content faster from files
+text.list <- parSapply(cl, list.files("./final/en_US/"), extractText, 0.5)
+
+# Merge the extracted samples to one list only and remove all weird characters non latin characters
+allText <- iconv(
+  unlist(
+    rbind(text.list)
+  ), 
+  "latin1", 
+  "ASCII", 
+  sub=""
+)
+
+# Remove not needed variables
+rm(text.list)
+gc()
+```
+
+Here I'll split the text into 3 data sets: 
+Training set - 70% of the data
+Validation set - 15% of the data
+Test set - 15% of the data
+```{r eval = FALSE}
+# Getting the length of the full read text and dividing it into training, sample and text sets
+len = length(allText)
+# Splitting the content in 70% for training and 30% for validation and test
+inTrain <- sample(len, len * 0.7)
+trainingSet <- allText[inTrain]
+
+# Getting the remaining 30% of the content
+testNValidation <- allText[-inTrain]
+len = length(testNValidation)
+# Dividing the content in 2
+inTest <- sample(len, len * 0.5)
+testSet <- testNValidation[inTest]
+validationSet <- testNValidation[-inTest]
+
+# Saving the content in files
+saveRDS(trainingSet, "trainingSet.rds")
+saveRDS(testSet, "testSet.rds")
+saveRDS(validationSet, "validationSet.rds")
+
+stopCluster(cl)
+rm(list = ls())
+```
+
+## Transform raw text to clean n-grams
+Now,using `quanteda` library we create tokens from the text:
+```{r eval = FALSE}
+textToTokens <- function(trainingSet) {
+  # Create a corpus from the training set text
+  corp <- corpus(trainingSet)
+
+  # separate into sentences because the context of is important. Not worth to predict a word after two words and a period...
+  corp_sent <- corpus_reshape(corp, to = 'sentences', use_docvars = FALSE)
+
+  ## Tokenizing words, removing punctuation, twitter specifics, numbers, hyphens, symbols, URLs and separators
+  toks <- tokens(
+    tolower(corp_sent),
+    "word",
+    remove_punct = TRUE,
+    remove_twitter = TRUE,
+    remove_numbers = TRUE,
+    remove_hyphens = TRUE,
+    remove_symbols = TRUE,
+    remove_url = TRUE,
+    remove_separators = TRUE,
+    include_docvars = FALSE
+  )
+
+  return(toks)
+}
+```
+
+After storing the content in `words` variable, we create 2-grams and 3-grams. In previous version, I'd also created 4-grams, but as I'll show on the prediction algorithm, this was not worth to do because it would compromise performance, not increasingly making better the accuracy.
+```{r eval = FALSE}
+# For bi-grams
+bi_gram <- tokens_ngrams(words, n = 2)
+# For tri-grams
+tri_gram <- tokens_ngrams(words, n = 3)
+```
+
+Then I remove same of the profane words from the data, using this function to get the list of profanity words:
+```{r}
+# Get profanity words
+getProfanityWords <- function() {
+  profanity_words_url <- "https://raw.githubusercontent.com/shutterstock/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/master/en"
+  profanity <- read.csv(profanity_words_url, header = FALSE, stringsAsFactors = FALSE)
+  profanity$V1
+}
+
+profanity <- getProfanityWords()
+```
+While creating the document-feature matrix for the different n-grams, I remove the profanity words:
+```{r eval = FALSE}
+# Remove profanity from all n-grams
+words <- readRDS("all_words.rds")
+uni_DFM <- dfm(words, remove = profanity)
+bi_DFM <- dfm(bi_gram, remove = profanity)
+tri_DFM <- dfm(tri_gram, remove = profanity)
+```
+
+```{r echo=FALSE, eval=TRUE}
+words <- readRDS("all_words.rds")
+uni_DFM <- dfm(words, remove = profanity)
+```
+
+To create a dataframe with the different combinations of the different n-grams, I use `sumCols` in each of the `DFM`s 
+```{r eval = FALSE}
+# Create named vectors with counts of words 
+sums_U <- colSums(uni_DFM)
+sums_B <- colSums(bi_DFM)
+sums_T <- colSums(tri_DFM)
+```
+
+Time to create the dataframes, using the `datatable` library:
+```{r eval = FALSE}
+# Create data table with word -> count for unigrams
+uni_grams <- data.table(word_1 = names(sums_U), count = sums_U)
+
+# Create data table with word_1, word-2 -> count for bigrams
+bi_grams <- data.table(
+  word_1 = sapply(strsplit(names(sums_B), "_", fixed = TRUE), '[[', 1),
+  word_2 = sapply(strsplit(names(sums_B), "_", fixed = TRUE), '[[', 2),
+  count = sums_B)
+
+# Create data table with word_1, word-2, word_3 -> count for trigrams
+tri_grams <- data.table(
+  word_1 = sapply(strsplit(names(sums_T), "_", fixed = TRUE), '[[', 1),
+  word_2 = sapply(strsplit(names(sums_T), "_", fixed = TRUE), '[[', 2),
+  word_3 = sapply(strsplit(names(sums_T), "_", fixed = TRUE), '[[', 3),
+  count = sums_T)
+```
+
+Because predicting `movie` after the sentence `to film a ` or the sentence `filming a ` is more or less as likely, I will stem the `word_1` in the 2-grams and the `word_1` and `word_2` in the 3-grams, so that we can get the most likely following word after stemed sentences.
+```{r eval = FALSE}
+bigram <- bi_grams[, word_1 := char_wordstem(word_1)]
+
+trigram <- tri_grams[, word_1 := char_wordstem(word_1)]
+trigram <- trigram[, word_2 := char_wordstem(word_2)]
+```
+
+
+## Exploratory Analysis
+To have a sense of the most used words, I'll plot a `wordcloud`:
+```{r}
+unigrams <- readRDS("stemed_unigram.rds")
+bigrams <- readRDS("stemed_bigram.rds")
+trigrams <- readRDS("stemed_trigram.rds")
+
+unigrams <- unigrams[order(-count)]
+bigrams <- bigrams[order(-count)]
+trigrams <- trigrams[order(-count)]
+
+textplot_wordcloud(uni_DFM, color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+```
+We can also have a look on the numbers of the most used words for all thr n-grams
+```{r}
+toGraph <- unigrams[order(-count)][1:20]
+toGraph$word_1 <- factor(toGraph$word_1, levels = toGraph$word_1)
+
+ggplot(data=toGraph, aes(x=word_1, y=count)) + geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle = 40, hjust = 1))
+
+toGraph <- bigrams[1:20, ]
+toGraph$word <- paste(toGraph$word_1, toGraph$word_2)
+toGraph$word <- factor(toGraph$word, levels = toGraph$word)
+
+ggplot(data=toGraph, aes(x=word, y=count)) + geom_bar(stat="identity")  +
+  theme(axis.text.x = element_text(angle = 40, hjust = 1))
+
+trigrams <- trigrams[1:20, ]
+trigrams$word <- paste(trigrams$word_1, trigrams$word_2, trigrams$word_3)
+trigrams$word <- factor(trigrams$word, levels = trigrams$word)
+
+ggplot(data=trigrams, aes(x=word, y=count)) + geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle = 40, hjust = 1))
+```
+
+
+## Next steps
+Next I'll calculate the probabilities of each n~grams, clean the ngrams from redundant and low likelywood features and formulate the algorithm for the prediciton model that works efficiently and accuratly. Then, I will integrate it in a that model in a shinny application.
+
